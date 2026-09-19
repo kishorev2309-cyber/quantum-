@@ -159,6 +159,21 @@ if st.session_state.history and st.sidebar.button("🔁 Re-optimize this round",
     apply_quantum_result(network, result)
     st.session_state.history.append(result)
 
+def _auto_reoptimize():
+    """
+    Runs one optimization pass against the CURRENT state (no time-advance)
+    and records it in history. Called right after every event trigger so
+    the signal lights, the Quantum tab, and the Environmental tab all
+    react immediately — previously an event only changed the traffic
+    state, and nothing re-ran the optimizer until a *separate* "Run next
+    round" click, so the lights looked unresponsive and the other two
+    tabs stayed on their empty placeholder until that extra click.
+    """
+    result = run_iteration(network, emergency_corridor=corridor, k=k)
+    apply_quantum_result(network, result)
+    st.session_state.history.append(result)
+
+
 st.sidebar.markdown('<span class="section-tag">Dynamic events</span>', unsafe_allow_html=True)
 event_target = st.sidebar.selectbox("Target junction", junction_ids, key="evt_target")
 
@@ -168,6 +183,7 @@ with col_a:
         msg, node = trigger_event(network, corridor, "congestion_spike", node=event_target)
         st.session_state.event_log.append(msg)
         st.session_state.last_event_junction = node
+        _auto_reoptimize()
     if st.button("🚧 Closure", use_container_width=True):
         edges = network.get_edges()
         my_edges = [e for e in edges if event_target in e]
@@ -175,11 +191,13 @@ with col_a:
         msg, node = trigger_event(network, corridor, "road_closure", edge=edge)
         st.session_state.event_log.append(msg)
         st.session_state.last_event_junction = node
+        _auto_reoptimize()
 with col_b:
     if st.button("💥 Accident", use_container_width=True):
         msg, node = trigger_event(network, corridor, "accident", node=event_target)
         st.session_state.event_log.append(msg)
         st.session_state.last_event_junction = node
+        _auto_reoptimize()
 
 st.sidebar.caption("🚑 Emergency dispatch")
 c1, c2 = st.sidebar.columns(2)
@@ -191,11 +209,13 @@ if st.sidebar.button("🚑 Dispatch emergency vehicle", use_container_width=True
     msg, node = trigger_event(network, corridor, "emergency_vehicle", source=src, destination=dst)
     st.session_state.event_log.append(msg)
     st.session_state.last_event_junction = node
+    _auto_reoptimize()
 
 if st.sidebar.button("🧹 Clear all events", use_container_width=True):
     clear_all_events(network, corridor)
     st.session_state.event_log.append("All events cleared, signals restored to normal.")
     st.session_state.last_event_junction = None
+    _auto_reoptimize()
 
 if st.sidebar.button("🔄 Reset simulation", use_container_width=True):
     _init_network(st.session_state.num_intersections)
