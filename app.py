@@ -5,7 +5,6 @@ import streamlit.components.v1 as components
 
 from simulator.network import TrafficNetwork
 from simulator.road_renderer import render_network_html
-from simulator import flowcharts
 from emergency.corridor import EmergencyCorridor
 from events.event_simulator import trigger_event, clear_all_events
 from core.engine import run_iteration, apply_quantum_result
@@ -309,16 +308,6 @@ with tab_quantum:
     if not latest:
         st.info("Run a round to see the QUBO → QAOA optimization in action.")
     else:
-        st.markdown('<span class="section-tag">Two pipelines, same traffic snapshot</span>', unsafe_allow_html=True)
-        st.caption("Same traffic data goes into both — a simple fixed rule, and the quantum optimizer — so the comparison is fair.")
-        colF1, colF2 = st.columns(2)
-        with colF1:
-            st.markdown("**📏 Classical baseline**")
-            st.markdown(flowcharts.classical_flow_svg(), unsafe_allow_html=True)
-        with colF2:
-            st.markdown("**⚛️ Quantum (QAOA)**")
-            st.markdown(flowcharts.quantum_flow_svg(), unsafe_allow_html=True)
-
         st.markdown('<span class="section-tag">Where the two decisions differ</span>', unsafe_allow_html=True)
         all_junctions = sorted(set(latest["classical_decisions"]) | set(latest["quantum_decisions"]))
         classical_gt = [latest["classical_decisions"].get(j, {}).get("green_time", 0) for j in all_junctions]

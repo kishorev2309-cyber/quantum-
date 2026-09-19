@@ -75,10 +75,12 @@ def _lane_markers():
 
 def _signal_head(cx, cy, angle_deg, color, glow, size):
     glow_class = "sig-glow" if glow else ""
+    ring = "#ffffff" if glow else "#0d0f14"
+    ring_w = 2.2 if glow else 1.2
     return f"""
     <g transform="translate({cx},{cy}) rotate({angle_deg})">
       <rect x="-3" y="-2" width="6" height="14" fill="#20242e" rx="1.5"/>
-      <circle class="{glow_class}" cx="0" cy="-6" r="{size}" fill="{color}" stroke="#0d0f14" stroke-width="1.2"/>
+      <circle class="{glow_class}" cx="0" cy="-6" r="{size}" fill="{color}" stroke="{ring}" stroke-width="{ring_w}"/>
     </g>
     """
 
@@ -185,11 +187,11 @@ def render_network_html(network, corridor, event_junction=None, height=560):
 
         gt = d["green_time"]
         if gt >= 40:
-            active_color, active_size, glow = "#2ecc71", 5.5, True
+            active_color, active_size, glow = "#00e676", 7.5, True
         elif gt >= 30:
-            active_color, active_size, glow = "#ffd166", 4.5, False
+            active_color, active_size, glow = "#ffd166", 5, False
         else:
-            active_color, active_size, glow = "#ff5b5b", 4, False
+            active_color, active_size, glow = "#ff5b5b", 4.5, False
 
         # Decide which axis (or axes) are green this cycle.
         # BUG FIXED HERE: when the emergency corridor bends at this junction
@@ -219,8 +221,8 @@ def render_network_html(network, corridor, event_junction=None, height=560):
                 else:
                     sig_color, sig_size, sig_glow = "#ff5b5b", 3.5, False  # the other axis is always red while this one runs
 
-                hx = x + 34 * math.cos(math.radians(ang))
-                hy = y + 34 * math.sin(math.radians(ang))
+                hx = x + 46 * math.cos(math.radians(ang))
+                hy = y + 46 * math.sin(math.radians(ang))
                 svg_parts.append(_signal_head(hx, hy, ang + 90, sig_color, sig_glow, sig_size))
                 queue_color = "#8b8f9c" if blocked else ("#f2a154" if axis_idx in active_axes else "#6c7284")
                 svg_parts.append(_queue_dots(x, y, ang, d["queue"] // max(1, len(axes)), queue_color))
