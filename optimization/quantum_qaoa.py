@@ -22,6 +22,7 @@ loop is exactly the "hybrid" part the problem statement asks for.
 import numpy as np
 from scipy.optimize import minimize
 from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
 from qiskit_aer import AerSimulator
 
 from optimization.qubo import evaluate_cost
@@ -36,7 +37,7 @@ MAX_ITER = 15  # kept low so a demo run stays fast, especially on modest hosting
 _SIMULATOR = AerSimulator()
 
 
-def _build_circuit(num_qubits, Q, params):
+def _build_circuit(num_qubits, Q, params, measure=True):
     p = len(params) // 2
     gammas = params[0::2]
     betas = params[1::2]
@@ -57,22 +58,35 @@ def _build_circuit(num_qubits, Q, params):
         for q in range(num_qubits):
             circuit.rx(2 * beta, q)
 
-    circuit.measure_all()
+    if measure:
+        circuit.measure_all()
     return circuit
 
 
-def _expected_cost(params, num_qubits, Q, simulator):
-    circuit = _build_circuit(num_qubits, Q, params)
-    result = simulator.run(circuit, shots=SHOTS).result()
-    counts = result.get_counts()
+def _expected_cost_exact(params, num_qubits, Q):
+    """
+    Exact expectation value of the QUBO cost under the QAOA state, computed
+    from the statevector directly -- no measurement, no shot noise.
+
+    This replaces the old approach of sampling the circuit through
+    AerSimulator 300 times on *every single COBYLA step* (15 steps x 300
+    shots = 4500 noisy circuit executions, each paying the backend job
+    dispatch overhead). A statevector is pure linear algebra -- for the
+    handful of qubits we use here (k<=4 junctions x 3 = up to 12 qubits)
+    it's both much faster and numerically exact, so COBYLA is steering
+    against a clean signal instead of shot noise.
+    """
+    circuit = _build_circuit(num_qubits, Q, params, measure=False)
+    sv = Statevector.from_instruction(circuit)
+    probs = sv.probabilities_dict()
 
     total = 0.0
-    shots_seen = 0
-    for bitstring, count in counts.items():
-        normalized = bitstring.replace(" ", "")[::-1]
-        total += evaluate_cost(Q, normalized) * count
-        shots_seen += count
-    return total / max(1, shots_seen)
+    for bitstring, prob in probs.items():
+        if prob < 1e-12:
+            continue
+        normalized = bitstring[::-1]
+        total += evaluate_cost(Q, normalized) * prob
+    return total
 
 
 def run_qaoa(Q, variable_info, p_layers=P_LAYERS, max_iter=MAX_ITER, seed=7):
@@ -83,13 +97,12 @@ def run_qaoa(Q, variable_info, p_layers=P_LAYERS, max_iter=MAX_ITER, seed=7):
       history: list of (iteration, expected_cost) for the dashboard
     """
     num_qubits = len(variable_info)
-    simulator = _SIMULATOR
     rng = np.random.default_rng(seed)
 
     history = []
 
     def objective(params):
-        cost = _expected_cost(params, num_qubits, Q, simulator)
+        cost = _expected_cost_exact(params, num_qubits, Q)
         history.append(cost)
         return cost
 
@@ -102,9 +115,11 @@ def run_qaoa(Q, variable_info, p_layers=P_LAYERS, max_iter=MAX_ITER, seed=7):
         options={"maxiter": max_iter, "rhobeg": 0.5},
     )
 
-    # Final sampling round with the tuned parameters to pick the best bitstring
-    final_circuit = _build_circuit(num_qubits, Q, result.x)
-    final_result = simulator.run(final_circuit, shots=SHOTS).result()
+    # One real sampling round with the tuned parameters, purely to show an
+    # authentic "measured X/300 shots" statistic on the dashboard -- the
+    # optimization itself no longer depends on this being noise-free.
+    final_circuit = _build_circuit(num_qubits, Q, result.x, measure=True)
+    final_result = _SIMULATOR.run(final_circuit, shots=SHOTS).result()
     counts = final_result.get_counts()
 
     candidates = []

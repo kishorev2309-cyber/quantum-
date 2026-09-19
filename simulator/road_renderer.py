@@ -191,22 +191,30 @@ def render_network_html(network, corridor, event_junction=None, height=560):
         else:
             active_color, active_size, glow = "#ff5b5b", 4, False
 
-        # decide which axis is "active" (green/amber) this cycle: the
-        # emergency corridor's through-direction wins if this junction is
-        # on the corridor, otherwise axis 0 is simply the active phase —
-        # but NEVER more than one axis at a time (that's the real-world rule).
-        active_axis_idx = 0
+        # Decide which axis (or axes) are green this cycle.
+        # BUG FIXED HERE: when the emergency corridor bends at this junction
+        # (arrives from one direction, leaves in a roughly perpendicular
+        # direction), the arrival and departure edges can land on two
+        # DIFFERENT phase-axes. The previous version kept overwriting a
+        # single `active_axis_idx`, so only the last-processed axis won and
+        # the other leg of the ambulance's own route still rendered red --
+        # exactly the bug in the screenshot. A real emergency override
+        # clears every direction the corridor actually uses, so now every
+        # axis touched by a corridor edge is marked green, not just one.
+        active_axes = set()
         if is_corridor:
             for i, axis in enumerate(axes):
                 for ang, nb in neighbor_angles:
                     if ang in axis and frozenset((node, nb)) in corridor_edges:
-                        active_axis_idx = i
+                        active_axes.add(i)
+        if not active_axes:
+            active_axes = {0}
 
         for axis_idx, axis in enumerate(axes):
             for ang in axis:
                 if blocked:
                     sig_color, sig_size, sig_glow = "#5c6070", 3, False
-                elif axis_idx == active_axis_idx:
+                elif axis_idx in active_axes:
                     sig_color, sig_size, sig_glow = active_color, active_size, glow
                 else:
                     sig_color, sig_size, sig_glow = "#ff5b5b", 3.5, False  # the other axis is always red while this one runs
@@ -214,7 +222,7 @@ def render_network_html(network, corridor, event_junction=None, height=560):
                 hx = x + 34 * math.cos(math.radians(ang))
                 hy = y + 34 * math.sin(math.radians(ang))
                 svg_parts.append(_signal_head(hx, hy, ang + 90, sig_color, sig_glow, sig_size))
-                queue_color = "#8b8f9c" if blocked else ("#f2a154" if axis_idx == active_axis_idx else "#6c7284")
+                queue_color = "#8b8f9c" if blocked else ("#f2a154" if axis_idx in active_axes else "#6c7284")
                 svg_parts.append(_queue_dots(x, y, ang, d["queue"] // max(1, len(axes)), queue_color))
 
         svg_parts.append(f'<circle cx="{x}" cy="{y}" r="16" fill="#0d0f14" stroke="{"#ff3b4e" if is_corridor else "#3a4152"}" stroke-width="2"/>')
