@@ -1,0 +1,8 @@
+streamlit>=1.32
+qiskit>=1.0
+qiskit-aer>=0.14
+numpy>=1.24
+pandas>=2.0
+networkx>=3.1
+plotly>=5.18
+scipy>=1.11
