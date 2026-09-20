@@ -12,6 +12,21 @@ Fixes vs. the original prototype:
     quantum circuit stays small enough to simulate quickly, while
     every intersection still gets served (the rest fall back to the
     classical rule in `optimization/classical_baseline.py`).
+
+Fix (this pass): removed a "shared cycle budget" constraint that used
+to penalize the total green time summed *across all selected
+junctions* toward a fixed average. That had no physical basis -- each
+real intersection runs its own independent signal cycle, there's no
+actual shared time pool between different junctions -- and it was
+silently fighting the congestion objective: whenever the objective
+correctly pushed one busy junction toward 40s, this constraint yanked
+another one down to 20s just to keep the group total near budget,
+even when that junction was also busy. That's what was causing the
+QAOA solution to lose to the classical baseline more often than it
+should have. Junctions are now optimized independently, same as the
+classical baseline does -- so quantum should track or beat classical
+per junction, never get worse from an artificial cross-junction
+trade-off.
 """
 
 GREEN_OPTIONS = [20, 30, 40]
@@ -56,12 +71,13 @@ def build_qubo(intersection_data, k=4, emergency_nodes=None):
         Q[key] = Q.get(key, 0) + value
 
     ONE_CHOICE_PENALTY = 100
-    CYCLE_PENALTY = 2
-    CYCLE_BUDGET = 30 * len(selected)  # aim for ~30s average across selected junctions
     EMERGENCY_WEIGHT = 60  # extra pull towards long green for corridor junctions
 
     # 1. Congestion objective: longer green = lower cost, scaled by
-    #    how congested / capacity-constrained the junction is.
+    #    how congested / capacity-constrained the junction is. Each
+    #    junction's cost only depends on its OWN variables -- no
+    #    cross-junction coupling here, so there's nothing forcing one
+    #    junction's timing to trade off against another's.
     for item in variable_info:
         junction = item["junction"]
         green_time = item["green_time"]
@@ -89,19 +105,6 @@ def build_qubo(intersection_data, k=4, emergency_nodes=None):
             for b in range(a + 1, len(indices)):
                 add_term(indices[a], indices[b], 2 * ONE_CHOICE_PENALTY)
 
-    # 3. Shared-cycle constraint: keep total green time near budget, expand (sum g_i x_i - budget)^2
-    green_values = {item["index"]: item["green_time"] for item in variable_info}
-    for i, g in green_values.items():
-        coefficient = CYCLE_PENALTY * (g * g - 2 * CYCLE_BUDGET * g)
-        add_term(i, i, coefficient)
-
-    indices = list(green_values.keys())
-    for a in range(len(indices)):
-        for b in range(a + 1, len(indices)):
-            i, j = indices[a], indices[b]
-            coefficient = CYCLE_PENALTY * 2 * green_values[i] * green_values[j]
-            add_term(i, j, coefficient)
-
     return Q, selected, variable_info
 
 
@@ -111,3 +114,4 @@ def evaluate_cost(Q, bitstring):
     for (i, j), coefficient in Q.items():
         cost += coefficient * bits[i] * bits[j]
     return cost
+

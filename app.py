@@ -22,11 +22,18 @@ st.markdown(
 
     .stApp {
         background:
-          radial-gradient(circle at 10% 0%, rgba(108,140,255,0.10), transparent 45%),
-          radial-gradient(circle at 90% 10%, rgba(255,120,120,0.06), transparent 40%),
-          linear-gradient(0deg, #2a1750 0%, #170f2e 22%, #0b0d12 55%, #0b0d12 100%);
-        background-size: 100% 220%;
-        animation: risePurple 14s ease-in-out infinite alternate;
+          radial-gradient(circle at 15% 20%, rgba(178,141,255,0.22), transparent 32%),
+          radial-gradient(circle at 85% 12%, rgba(120,60,220,0.18), transparent 30%),
+          radial-gradient(circle at 75% 65%, rgba(60,20,90,0.55), transparent 40%),
+          radial-gradient(circle at 20% 80%, rgba(190,150,255,0.14), transparent 35%),
+          radial-gradient(circle at 50% 45%, rgba(15,8,25,0.9), transparent 55%),
+          linear-gradient(0deg, #2a1750 0%, #170f2e 22%, #0b0710 55%, #0b0710 100%);
+        background-size: 140% 140%, 140% 140%, 140% 140%, 140% 140%, 140% 140%, 100% 220%;
+        animation: risePurple 16s ease-in-out infinite alternate, driftSpots 22s ease-in-out infinite alternate;
+    }
+    @keyframes driftSpots {
+        0%   { background-position: 0% 0%, 100% 0%, 100% 100%, 0% 100%, 50% 50%, 0% 100%; }
+        100% { background-position: 8% 12%, 88% 10%, 90% 88%, 10% 90%, 54% 46%, 0% 0%; }
     }
     @keyframes risePurple {
         0%   { background-position: 0% 100%; }
